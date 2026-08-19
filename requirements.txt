@@ -1,0 +1,5 @@
+# UVP Teleprompter runs with Tkinter and can optionally record audio locally.
+# Recommended install for recording:
+#   pip install sounddevice soundfile pydub
+#
+# MP3 export also requires ffmpeg on PATH.

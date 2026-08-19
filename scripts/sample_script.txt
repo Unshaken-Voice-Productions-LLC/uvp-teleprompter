@@ -1,0 +1,7 @@
+UVP Sample Teleprompter Script
+
+Hello, and thank you for watching.
+This is a simple sample script you can edit, save, and load later.
+Use the Space bar to start or pause the scroll.
+Adjust speed and font size while you rehearse.
+Open the popup teleprompter on another monitor for recording.
