@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 import queue
 import shutil
 import sys
@@ -59,6 +60,11 @@ def format_hms(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
+def script_summary(text: str) -> str:
+    words = len(text.split())
+    return f"{words:,} words · Estimated reading time {format_hms(words / 150 * 60)} at 150 words/min"
+
+
 @dataclass
 class TeleprompterState:
     script_text: str = DEFAULT_TEXT
@@ -103,10 +109,11 @@ class AudioRecorder:
         self._temp_wav_path: Path | None = None
         self._final_path: Path | None = None
         self._dropped_blocks = 0
+        self._writer_error: str | None = None
 
     @property
     def active(self) -> bool:
-        return self._active
+        return self._active or self._writer_thread is not None
 
     @property
     def paused(self) -> bool:
@@ -176,27 +183,37 @@ class AudioRecorder:
             if block is None:
                 continue
             if self._file is not None:
-                self._file.write(block)
+                try:
+                    self._file.write(block)
+                except Exception as exc:
+                    self._writer_error = str(exc)
+                    self._last_message = f"Audio write failed: {exc}"
+                    self._stop_event.set()
+                    return
 
     def _probe_mp3_export(self) -> bool:
         if AudioSegment is None:
             return False
-        return bool(shutil.which("ffmpeg") or shutil.which("ffmpeg.exe") or getattr(AudioSegment, "converter", None))
+        converter = getattr(AudioSegment, "converter", "ffmpeg")
+        return bool(shutil.which(converter))
 
     def start(self, output_format: str) -> tuple[bool, str]:
         if not self.support.available:
             return False, self.support.message
-        if self._active:
+        if self._active or self._writer_thread is not None:
             return False, "Recording is already active."
         if sf is None or sd is None:
             return False, "Recording libraries are not installed."
 
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return False, f"Recording folder is not writable: {exc}"
         self._format = output_format.upper().strip() if output_format else "WAV"
         if self._format not in {"WAV", "MP3"}:
             self._format = "WAV"
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
         base_name = f"UVP_recording_{timestamp}"
         self._base_path = self.output_dir / base_name
         self._temp_wav_path = self._base_path.with_suffix(".wav")
@@ -207,6 +224,7 @@ class AudioRecorder:
         self._segment_started_at = time.perf_counter()
         self._paused = False
         self._dropped_blocks = 0
+        self._writer_error = None
         self._status = "Recording"
         self._last_message = ""
 
@@ -214,7 +232,7 @@ class AudioRecorder:
             self.sample_rate = self._resolve_sample_rate()
             self._file = sf.SoundFile(
                 str(self._temp_wav_path),
-                mode="w",
+                mode="x",
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 subtype="PCM_16",
@@ -281,11 +299,12 @@ class AudioRecorder:
         return self.resume() if self._paused else self.pause()
 
     def stop(self) -> tuple[bool, str]:
-        if not self._active:
+        if not self._active and self._writer_thread is None:
             return False, "No recording is active."
 
-        if not self._paused:
+        if self._active and not self._paused:
             self._accumulated_seconds += time.perf_counter() - self._segment_started_at
+        self._active = False
 
         self._stop_event.set()
         try:
@@ -299,19 +318,30 @@ class AudioRecorder:
         try:
             if self._writer_thread is not None:
                 self._writer_thread.join(timeout=5)
-        except Exception:
-            pass
+                if self._writer_thread.is_alive():
+                    self._status = "Error"
+                    self._last_message = "Audio is still being written. Wait and press Stop again before closing."
+                    return False, self._last_message
+        except Exception as exc:
+            self._status = "Error"
+            self._last_message = f"Could not finish the audio writer: {exc}"
+            return False, self._last_message
         self._writer_thread = None
 
         try:
             if self._file is not None:
                 self._file.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            self._writer_error = str(exc)
         self._file = None
 
         self._active = False
         self._paused = False
+
+        if self._writer_error:
+            self._status = "Error"
+            self._last_message = f"Recording could not be saved completely: {self._writer_error}. Check the partial WAV file."
+            return False, self._last_message
 
         if self._temp_wav_path is None:
             self._status = "Error"
@@ -343,6 +373,8 @@ class AudioRecorder:
 
         self._last_saved_path = saved_path
         self._status = "Saved"
+        if self._dropped_blocks:
+            final_message += f" Warning: {self._dropped_blocks} audio block(s) were dropped."
         self._last_message = final_message
         return True, final_message
 
@@ -438,7 +470,7 @@ class PrompterView:
             return
         width = max(320, self.canvas.winfo_width())
         height = max(240, self.canvas.winfo_height())
-        y = max(20, height + 20 - self.app.state.scroll_px)
+        y = height + 20 - self.app.state.scroll_px
         self.canvas.coords(self._text_item, width // 2, y)
         if self._guide_line is not None:
             self.canvas.coords(self._guide_line, 0, height // 2, width, height // 2)
@@ -502,7 +534,7 @@ class TeleprompterApp:
         self.root = root
         self.root.title(APP_NAME)
         self.root.configure(bg="#121212")
-        self.root.minsize(1200, 780)
+        self.root.minsize(900, 600)
 
         self.project_root = Path(__file__).resolve().parent.parent
         self.scripts_dir = self.project_root / "scripts"
@@ -546,6 +578,7 @@ class TeleprompterApp:
         self.recording_last_saved_var = tk.StringVar(value="None")
         self.recording_hint_var = tk.StringVar(value=self.audio_support.message)
         self.speed_display_var = tk.StringVar(value=f"Current speed: {int(self.state.speed_px_per_sec)} px/s")
+        self.script_summary_var = tk.StringVar(value=script_summary(self.state.script_text))
 
         self._setup_style()
         self._build_ui()
@@ -594,7 +627,8 @@ class TeleprompterApp:
     def _mp3_export_available(self) -> bool:
         if AudioSegment is None:
             return False
-        return bool(shutil.which("ffmpeg") or shutil.which("ffmpeg.exe") or getattr(AudioSegment, "converter", None))
+        converter = getattr(AudioSegment, "converter", "ffmpeg")
+        return bool(shutil.which(converter))
 
     def _setup_style(self):
         style = ttk.Style()
@@ -848,7 +882,7 @@ class TeleprompterApp:
         )
         self.font_slider.grid(row=0, column=3, sticky="ew", padx=(8, 18))
 
-        self.mirror_check = ttk.Checkbutton(row, text="Mirror text", variable=self.mirror_var, command=self._on_display_change)
+        self.mirror_check = ttk.Checkbutton(row, text="Reverse text", variable=self.mirror_var, command=self._on_display_change)
         self.mirror_check.grid(row=0, column=4, sticky="w", padx=(0, 14))
         self.topmost_check = ttk.Checkbutton(row, text="Keep Window On Top", variable=self.topmost_var, command=self._apply_window_flags)
         self.topmost_check.grid(row=0, column=5, sticky="w", padx=(0, 14))
@@ -860,6 +894,7 @@ class TeleprompterApp:
         row.columnconfigure(3, weight=1)
 
     def _build_edit_tab(self):
+        ttk.Label(self.edit_tab, textvariable=self.script_summary_var, padding=8).pack(side="bottom", fill="x")
         frame = ttk.Frame(self.edit_tab, padding=10)
         frame.pack(fill="both", expand=True)
 
@@ -1071,6 +1106,7 @@ class TeleprompterApp:
     def _sync_from_editor(self):
         self._editor_update_job = None
         self.state.script_text = self.editor.get("1.0", "end-1c")
+        self.script_summary_var.set(script_summary(self.state.script_text))
         self._refresh_views(force=True)
 
     def _on_speed_change(self):
@@ -1127,8 +1163,6 @@ class TeleprompterApp:
         if not path:
             return
         try:
-            text = Path(path).read_text(encoding="utf-8")
-        except UnicodeDecodeError:
             text = Path(path).read_text(encoding="utf-8-sig")
         except Exception as exc:
             messagebox.showerror(APP_NAME, f"Could not open file:\n{exc}")
@@ -1138,6 +1172,7 @@ class TeleprompterApp:
         self.editor.insert("1.0", text)
         self.editor.edit_modified(False)
         self.state.script_text = text
+        self.script_summary_var.set(script_summary(text))
         self._refresh_views(force=True)
         self._set_status(f"Loaded {self.current_file.name}")
 
@@ -1214,8 +1249,8 @@ class TeleprompterApp:
             value = float(raw)
         except ValueError:
             raise ValueError("Target minutes must be a number.")
-        if value < 0:
-            raise ValueError("Target minutes cannot be negative.")
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("Target minutes must be a finite, nonnegative number.")
         return value
 
     def start_timer(self):
@@ -1459,9 +1494,13 @@ def main():
         if messagebox.askokcancel(APP_NAME, "Exit UVP Teleprompter?"):
             try:
                 if app.recorder.active:
-                    app.recorder.stop()
-            except Exception:
-                pass
+                    success, message = app.recorder.stop()
+                    if not success:
+                        messagebox.showwarning(APP_NAME, message)
+                        return
+            except Exception as exc:
+                messagebox.showwarning(APP_NAME, f"Could not finish recording: {exc}")
+                return
             root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)

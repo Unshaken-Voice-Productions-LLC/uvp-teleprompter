@@ -1,23 +1,7 @@
-﻿# Public Release Boundary
+# Public release boundary
 
-This repository is a clean public-release candidate derived from a private Unshaken Voice Productions working repository.
+This repository is publicly visible. It contains a curated export; the private working repository and its history remain separate.
 
-The current private source repository must not be made public directly.
+Include only reusable tool code, fictional examples and documentation appropriate for public readers. Exclude credentials, customer records, private business documents, raw recordings, workstation files, deployment secrets, proprietary core architecture and private prompts.
 
-This public candidate must not include:
-
-- Private Git history
-- Credentials, tokens, or API keys
-- Customer or client records
-- Private business documents
-- Raw recordings or generated private media
-- Local workstation files
-- Internal deployment secrets
-- Proprietary Aleph core architecture
-- Private agent prompts or internal governance records
-
-Release type:
-
-GREEN public source candidate
-
-Final publication requires explicit human approval from Steven before changing visibility to public.
+Public visibility is not an open-source license. LICENSE remains pending owner approval. Any license grant, new repository visibility change, or production deployment requires the owner's explicit approval. Proposed changes belong in a review branch and pull request.

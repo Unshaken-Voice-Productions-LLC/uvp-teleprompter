@@ -33,3 +33,7 @@ temp/
 *.mov
 *.avi
 *.psd
+
+# Local script recovery/work files
+backups/
+*.pyc
