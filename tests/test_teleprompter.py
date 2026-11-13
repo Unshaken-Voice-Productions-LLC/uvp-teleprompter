@@ -80,6 +80,25 @@ class TeleprompterTests(unittest.TestCase):
         self.assertIn("disk full", message)
         self.assertEqual(recorder.status, "Error")
 
+    def test_writer_failure_stops_capture_on_ui_poll(self):
+        recorder = app.AudioRecorder(Path("unused"), app.AudioSupport(True, "", False))
+        recorder._active = True
+        recorder._queue = queue.Queue()
+        recorder._queue.put(object())
+        recorder._file = Mock()
+        recorder._file.write.side_effect = OSError("disk full")
+        recorder._stream = Mock()
+        stream, file = recorder._stream, recorder._file
+        recorder._writer_loop()
+        self.assertFalse(recorder._active)
+        self.assertEqual(recorder.status, "Error")
+        recorder.poll_failure()
+        stream.stop.assert_called_once()
+        stream.close.assert_called_once()
+        file.close.assert_called_once()
+        self.assertIsNone(recorder._stream)
+        self.assertIn("disk full", recorder.last_message)
+
     def test_writer_timeout_keeps_file_open_for_retry(self):
         recorder = app.AudioRecorder(Path("unused"), app.AudioSupport(True, "", False))
         recorder._active = True

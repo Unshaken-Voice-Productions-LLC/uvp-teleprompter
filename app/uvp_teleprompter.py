@@ -189,7 +189,16 @@ class AudioRecorder:
                     self._writer_error = str(exc)
                     self._last_message = f"Audio write failed: {exc}"
                     self._stop_event.set()
+                    if self._active and not self._paused:
+                        self._accumulated_seconds += time.perf_counter() - self._segment_started_at
+                    self._active = False
+                    self._status = "Error"
                     return
+
+    def poll_failure(self) -> None:
+        # Finalize on the UI thread; the writer must never join itself.
+        if self._writer_error and (self._writer_thread is not None or self._file is not None or self._stream is not None):
+            self.stop()
 
     def _probe_mp3_export(self) -> bool:
         if AudioSegment is None:
@@ -299,7 +308,7 @@ class AudioRecorder:
         return self.resume() if self._paused else self.pause()
 
     def stop(self) -> tuple[bool, str]:
-        if not self._active and self._writer_thread is None:
+        if not self._active and self._writer_thread is None and self._file is None:
             return False, "No recording is active."
 
         if self._active and not self._paused:
@@ -1405,6 +1414,7 @@ class TeleprompterApp:
         self._set_status("Popup teleprompter closed")
 
     def _refresh_recording_display(self, now: float):
+        self.recorder.poll_failure()
         self.recording_status_var.set(self.recorder.status)
         self.recording_elapsed_var.set(format_hms(self.recorder.elapsed_seconds(now)))
         self.recording_folder_var.set(str(self.recordings_dir))
@@ -1424,6 +1434,8 @@ class TeleprompterApp:
         if not self.audio_support.available:
             self.recording_status_var.set("Recording unavailable")
             self.recording_hint_var.set(self.audio_support.message)
+        elif self.recorder.status == "Error":
+            self.recording_hint_var.set(self.recorder.last_message)
         elif self.recorder.output_format == "MP3" and not self.audio_support.can_mp3:
             self.recording_hint_var.set("MP3 export requires ffmpeg. WAV recording will still work.")
         elif not self.recorder.active and self.recorder.status == "Idle":
