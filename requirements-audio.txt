@@ -1,0 +1,5 @@
+# Optional audio features; install in a Python 3.11/3.12 virtual environment.
+# Review resolved versions before distributing a packaged application.
+sounddevice
+soundfile
+pydub

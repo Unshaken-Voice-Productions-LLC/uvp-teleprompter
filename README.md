@@ -1,85 +1,56 @@
 # UVP Teleprompter
 
-UVP Teleprompter is a local offline teleprompter for recording videos on Windows.
+A local, offline teleprompter for rehearsing and recording on Windows. Edit a text script, adjust scrolling and font size, open a second-monitor view, and use a session timer. Optional microphone recording stays on your computer.
 
-## What’s in v2.1
+## Start
 
-- Visible dashboard with:
-  - Script Controls
-  - Teleprompter Controls
-  - Session Timer
-  - Audio Recording
-- Right-side scrollbars in teleprompter and pop-out views
-- Mouse wheel scrolling on the teleprompter display
-- Session timer with optional countdown mode
-- Local audio recording to WAV or MP3
-- MP3 export via `pydub` and `ffmpeg`
-- Version label: `UVP Teleprompter v2.1`
+Install Python 3.10+ with Tcl/Tk (Python 3.11 or 3.12 is recommended for optional audio), then double-click `run_teleprompter.bat`, or run:
 
-## How to run
-
-1. Make sure Python 3 and Tkinter are installed.
-2. Double-click `run_teleprompter.bat`, or run:
-
-```bat
-python -u app\uvp_teleprompter.py
+```bash
+python app/uvp_teleprompter.py
 ```
 
-## How to test Tkinter
+The base app needs no pip packages. A sample script is in `scripts/sample_script.txt`. Open and save UTF-8 text files; a UTF-8 byte order mark is accepted.
 
-Run this from a terminal:
+## Controls
 
-```bat
-python -c "import tkinter as tk; root = tk.Tk(); root.destroy(); print('Tkinter works')"
+| Action | Shortcut |
+| --- | --- |
+| Start / pause | Space |
+| Reset scroll | R |
+| Faster / slower | Up / Down |
+| Larger / smaller font | + / - |
+| Fullscreen | F11 |
+| Leave fullscreen / close popup | Escape |
+| Manual scroll | Mouse wheel, Page Up / Page Down |
+| Jump to beginning / end | Home / End |
+| Open / save script | Ctrl+O / Ctrl+S |
+
+Reading shortcuts act in the prompter view or popup; they do not consume typing in the script editor. The editor shows word count and estimated reading time at 150 words per minute. This estimate is independent of pixel-based scroll speed.
+
+Long scripts continue scrolling beyond the first screen. The main and popup views share scroll state. Reverse text reverses character order; it does not optically mirror glyphs for a glass teleprompter.
+
+## Optional local audio
+
+In a virtual environment, install only the recording features you need:
+
+```bash
+python -m pip install -r requirements-audio.txt
 ```
 
-If that fails, install a standard Windows Python build that includes Tcl/Tk support.
+WAV needs `sounddevice` and `soundfile` plus a working microphone/PortAudio. MP3 additionally needs `pydub` and an executable `ffmpeg` on PATH. MP3 conversion keeps the WAV when conversion fails. The app reports dropped blocks and write errors; do not treat an error as a complete recording. Recording requires a separate explicit click and does not start automatically.
 
-## Audio recording setup
+Recordings are saved under `recordings/` beside the checkout, with a unique timestamp. Scripts and recordings are not uploaded. That directory must be writable; avoid installing into a protected system folder. Local files are not automatically encrypted or anonymized.
 
-Install the recommended audio packages:
+## Development and limitations
 
-```bat
-pip install sounddevice soundfile pydub
+```bash
+python -m unittest discover -s tests -v
+python -m compileall -q app tests
 ```
 
-If MP3 export is desired, make sure `ffmpeg` is installed and on `PATH`.
+Regression tests use controlled canvas and audio doubles, including long-scroll, text decoding, invalid timers, missing ffmpeg, writer failures and safe writer finalization. They do not replace a Windows GUI, actual microphone, long recording, second-monitor or MP3 acceptance test. Optional audio compatibility on Python 3.13+ is not established.
 
-## How recordings are saved
+Before replacing an unsaved script or closing the app, save changes. There is no automatic script recovery. Hardware and environment failures can leave a partial WAV that needs inspection.
 
-- Recordings are saved in the local `recordings\` folder.
-- Default filenames include the current date and time, such as:
-
-```text
-UVP_recording_2026-05-17_1430.wav
-```
-
-- WAV is the baseline format.
-- If MP3 is selected, the app records WAV first and then converts to MP3 when possible.
-
-## Troubleshooting
-
-- If recording buttons are disabled, check that `sounddevice`, `soundfile`, and `pydub` are installed and that a microphone is available.
-- If MP3 export fails, the WAV file is still kept and the app shows a friendly message.
-- If no microphone is available, the app should stay open and avoid crashing.
-
-## Keyboard shortcuts
-
-- `Space` = start/pause teleprompter
-- `R` = reset teleprompter scroll
-- `Up` = increase speed
-- `Down` = decrease speed
-- `+` or `=` = increase font size
-- `-` = decrease font size
-- `F11` = fullscreen toggle
-- `Escape` = exit fullscreen or close popup
-- Mouse wheel = manual scroll in teleprompter mode or popup mode
-- `Page Up` / `Page Down` = larger manual scroll jumps
-- `Home` = jump to top
-- `End` = jump to bottom
-
-## Notes
-
-- The app works fully offline.
-- No paid APIs or cloud services are required.
-- A sample script is included in `scripts/sample_script.txt`.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [LICENSE](LICENSE). This project is licensed under the MIT License.
