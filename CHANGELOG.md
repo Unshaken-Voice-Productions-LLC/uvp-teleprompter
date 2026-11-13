@@ -8,4 +8,4 @@
 - Preserve an active writer on finalization timeout and avoid overwriting existing recordings.
 - Add regression tests, CI, optional audio requirements and current usage/reuse documentation.
 
-These changes are proposed for review. No tagged release or open-source license grant has been made.
+MIT licensing was approved by Steven on November 13, 2026 and is included in this review branch. The upgrade is awaiting merge approval; no tagged release has been made.

@@ -53,4 +53,4 @@ Regression tests use controlled canvas and audio doubles, including long-scroll,
 
 Before replacing an unsaved script or closing the app, save changes. There is no automatic script recovery. Hardware and environment failures can leave a partial WAV that needs inspection.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [LICENSE](LICENSE). The source is public; an open-source license has not yet been granted.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [LICENSE](LICENSE). This project is licensed under the MIT License.

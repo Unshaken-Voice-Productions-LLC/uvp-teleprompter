@@ -1,6 +1,7 @@
 # Release checklist
 
-- [ ] Owner has approved the exact change and reuse license.
+- [x] Owner approved MIT licensing for the scoped UVP-owned material on 2026-11-13.
+- [ ] Owner has approved merging the exact upgrade changes.
 - [ ] CI tests and secret scan pass on the proposed commit.
 - [ ] Review source files, examples, generated output and full Git history for sensitive material.
 - [ ] Confirm documentation describes actual behavior and known limitations.

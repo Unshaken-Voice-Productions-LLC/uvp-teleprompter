@@ -4,4 +4,4 @@ Open an issue describing the problem and reproduction steps before a large chang
 
 Run `python -m unittest discover -s tests -v` from the repository root. See README for project-specific checks and known limitations. Security concerns belong in the private reporting channel listed in SECURITY.md.
 
-The repository is publicly visible, but its LICENSE is still pending owner approval. Contributions and review do not grant additional reuse rights. A license decision must precede an open-source release.
+UVP-owned original software and documentation are licensed under MIT; see LICENSE and NOTICE.md. Preserve required notices and confirm that any third-party contribution can be distributed under its stated terms.
